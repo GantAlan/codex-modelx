@@ -1,0 +1,28 @@
+{
+  "common_plugins_only": {
+    "include_keywords": [
+      "chrome",
+      "zotero",
+      "presentation",
+      "presentations",
+      "slide",
+      "ppt",
+      "pptx",
+      "mcp__chrome",
+      "mcp__zotero"
+    ],
+    "exclude_keywords": [],
+    "experimental_keywords": [
+      "browser",
+      "browser-use",
+      "documents",
+      "spreadsheets"
+    ],
+    "notes": "When full_tools fails, keep tools whose normalized name or description contains include_keywords and does not contain exclude_keywords."
+  },
+  "tool_fallback": {
+    "on_full_tools_failed": "common_plugins_only",
+    "allow_no_tools_retry": false,
+    "allow_gpt_fallback": false
+  }
+}

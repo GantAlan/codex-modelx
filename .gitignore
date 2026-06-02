@@ -1,0 +1,23 @@
+﻿# Local secrets and runtime state
+codex-modelx/assets/config/modelx.config.json
+codex-modelx/logs/
+codex-modelx/state/
+
+# Python/runtime cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv/
+venv/
+
+# Archives generated locally
+*.zip
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

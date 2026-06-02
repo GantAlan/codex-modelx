@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "purpose": "Example configuration surface for community tool/plugin adapters. The MVP documents these fields; future versions may auto-apply them.",
+  "tool_profiles": [
+    {
+      "name": "chrome-zotero-presentations-common",
+      "match": {
+        "include_name_or_description_keywords": [
+          "chrome",
+          "zotero",
+          "presentation",
+          "presentations",
+          "slide",
+          "ppt",
+          "pptx"
+        ],
+        "exclude_name_or_description_keywords": []
+      },
+      "namespace_rules": {
+        "allow_namespaces": [
+          "chrome",
+          "zotero",
+          "presentations"
+        ],
+        "deny_namespaces": []
+      },
+      "schema_cleanup": {
+        "max_description_chars": 1200,
+        "drop_unsupported_json_schema_keys": [
+          "$defs",
+          "examples",
+          "deprecated"
+        ],
+        "force_additional_properties_false": false
+      },
+      "name_mapping": {
+        "enabled": true,
+        "max_name_chars": 64,
+        "replace_invalid_chars_with": "_"
+      },
+      "parameter_pruning": {
+        "drop_parameters": [],
+        "keep_required_parameters": true
+      },
+      "fallback_strategy": "common_plugins_only",
+      "python_adapter": "scripts/adapters/example_adapter.py"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex ModelX"
+  short_description: "Route GPT and third-party models through one Codex provider."
+  default_prompt: "Use $codex-modelx to configure a local smart router. Keep model_provider=custom, point custom.base_url to http://127.0.0.1:17891/v1, pass GPT models through as Responses, and convert MiMo/Qwen/Kimi/DeepSeek/GLM models to Chat Completions."

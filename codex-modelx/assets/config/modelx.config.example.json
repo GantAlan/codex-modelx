@@ -1,0 +1,31 @@
+{
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 17891,
+    "log_level": "INFO"
+  },
+  "active_upstream": "default",
+  "upstreams": [
+    {
+      "name": "default",
+      "base_url": "https://your-api.example.com/v1",
+      "api_key": "paste-your-api-key-here",
+      "protocol": "openai_chat_completions",
+      "tool_strategy": "full_tools",
+      "expose_upstream_models": true,
+      "block_native_models": false,
+      "models": [
+        {
+          "name": "mimo-v2.5",
+          "protocol": "openai_chat_completions",
+          "tool_strategy": "full_tools"
+        }
+      ]
+    }
+  ],
+  "tool_fallback": {
+    "on_full_tools_failed": "common_plugins_only",
+    "allow_no_tools_retry": false,
+    "allow_gpt_fallback": false
+  }
+}
