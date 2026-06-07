@@ -73,7 +73,7 @@ experimental_bearer_token = "dummy-key"
 "@
 }
 
-Set-Content -LiteralPath $ConfigPath -Value $text -Encoding UTF8
+[System.IO.File]::WriteAllText($ConfigPath, $text, [System.Text.UTF8Encoding]::new($false))
 
 $fragment = @"
 # Recommended Codex ModelX smart-router config.

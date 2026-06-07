@@ -90,6 +90,12 @@ cd $env:USERPROFILE\.codex\skills\codex-modelx
 .\scripts\start_proxy.ps1
 ```
 
+安全默认：`start_proxy.ps1` 只启动或检查本地代理，不会自动修改 `C:\Users\<你的用户名>\.codex\config.toml`。如果你明确要让脚本修复 Codex 路由，才使用：
+
+```powershell
+.\scripts\start_proxy.ps1 -RepairCodexConfig
+```
+
 健康检查：
 
 ```powershell
@@ -150,14 +156,41 @@ python .\scripts\test_modelx.py --run-codex-plugin-tests
 
 ### 只看到 GPT 模型
 
-运行：
+先确认代理自己是否能看到第三方模型：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:17891/v1/models
+```
+
+如果代理里有 MiMo/Qwen/Kimi 等模型，但 Codex Desktop 仍然只显示 GPT，再运行：
 
 ```powershell
 .\scripts\repair_custom_provider.ps1
-.\scripts\start_proxy.ps1
+.\scripts\start_proxy.ps1 -RepairCodexConfig
 ```
 
 然后完整重启 Codex Desktop。
+
+### 模型菜单高级目录
+
+默认不要安装 `model_catalog_json`，因为格式不对会让 Codex Desktop 的模型菜单解析失败。需要时先预览：
+
+```powershell
+python .\scripts\generate_catalog.py --check-current
+python .\scripts\generate_catalog.py --include common
+```
+
+确认无误后再安装：
+
+```powershell
+python .\scripts\generate_catalog.py --include common --install
+```
+
+如果 Codex Desktop 出现模型菜单异常，撤销：
+
+```powershell
+python .\scripts\generate_catalog.py --uninstall
+```
 
 ### 不想继续用 codex-modelx
 

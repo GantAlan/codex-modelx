@@ -786,6 +786,16 @@ def response_payload_to_chat_payload(
             chat_payload[key] = payload[key]
     if "max_output_tokens" in payload and "max_tokens" not in chat_payload:
         chat_payload["max_tokens"] = payload["max_output_tokens"]
+    if chat_payload.get("stream"):
+        # Some reasoning-heavy third-party chat models stream reasoning_content
+        # before final content. With a tiny Responses max_output_tokens value,
+        # Codex can receive a syntactically valid but empty SSE answer.
+        try:
+            current_max_tokens = int(chat_payload.get("max_tokens") or 0)
+        except Exception:
+            current_max_tokens = 0
+        if current_max_tokens and current_max_tokens < 256:
+            chat_payload["max_tokens"] = 256
 
     if tools:
         chat_payload["tools"] = tools
@@ -870,8 +880,7 @@ def make_codex_model_entry(entry: Any, priority: int) -> dict[str, Any] | None:
         "visibility": "list",
         "supported_in_api": True,
         "priority": priority,
-        "additional_speed_tiers": [],
-        "service_tiers": [],
+        "additional_speed_tiers": ["fast"],
         "availability_nux": {"message": ""},
         "upgrade": None,
         "base_instructions": GENERIC_CODEX_BASE_INSTRUCTIONS,
@@ -1561,6 +1570,8 @@ class ResponsesProxyHandler(BaseHTTPRequestHandler):
         response_id = f"resp_proxy_{int(time.time() * 1000)}"
         message_id = f"msg_proxy_{int(time.time() * 1000)}"
         accumulated: list[str] = []
+        reasoning_accumulated: list[str] = []
+        finish_reason = ""
 
         self.send_response(int(response.status))
         self.send_header("Content-Type", "text/event-stream")
@@ -1622,7 +1633,11 @@ class ResponsesProxyHandler(BaseHTTPRequestHandler):
             choices = chunk.get("choices")
             if not isinstance(choices, list) or not choices:
                 continue
-            delta = choices[0].get("delta") if isinstance(choices[0], dict) else None
+            choice = choices[0] if isinstance(choices[0], dict) else {}
+            finish = choice.get("finish_reason")
+            if isinstance(finish, str) and finish:
+                finish_reason = finish
+            delta = choice.get("delta") if isinstance(choice, dict) else None
             if not isinstance(delta, dict):
                 continue
             content = delta.get("content")
@@ -1637,8 +1652,18 @@ class ResponsesProxyHandler(BaseHTTPRequestHandler):
                         "delta": content,
                     }
                 )
+            reasoning_content = delta.get("reasoning_content")
+            if isinstance(reasoning_content, str) and reasoning_content:
+                reasoning_accumulated.append(reasoning_content)
 
         text = "".join(accumulated)
+        if not text and reasoning_accumulated:
+            text = (
+                "[Codex ModelX warning] Upstream streamed reasoning_content but no final assistant content. "
+                "Increase max_output_tokens or retry without streaming."
+            )
+            if finish_reason:
+                text += f" finish_reason={finish_reason}."
         send_event(
             {
                 "type": "response.output_text.done",

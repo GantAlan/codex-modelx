@@ -67,6 +67,12 @@ Then start the proxy:
 .\scripts\start_proxy.ps1
 ```
 
+Safe default: `start_proxy.ps1` starts or checks the local proxy only. It does not modify `%USERPROFILE%\.codex\config.toml` unless you explicitly pass:
+
+```powershell
+.\scripts\start_proxy.ps1 -RepairCodexConfig
+```
+
 Health check:
 
 ```powershell
@@ -115,11 +121,33 @@ If Codex Desktop only shows GPT models again:
 
 ```powershell
 cd $env:USERPROFILE\.codex\skills\codex-modelx
+Invoke-RestMethod http://127.0.0.1:17891/v1/models
 .\scripts\repair_custom_provider.ps1
-.\scripts\start_proxy.ps1
+.\scripts\start_proxy.ps1 -RepairCodexConfig
 ```
 
 Then fully restart Codex Desktop.
+
+## Model Catalog
+
+By default, `codex-modelx` does not install `model_catalog_json`. A malformed catalog can break the Desktop model picker. Preview first:
+
+```powershell
+python .\scripts\generate_catalog.py --check-current
+python .\scripts\generate_catalog.py --include common
+```
+
+Install only if you accept the risk:
+
+```powershell
+python .\scripts\generate_catalog.py --include common --install
+```
+
+Undo catalog installation:
+
+```powershell
+python .\scripts\generate_catalog.py --uninstall
+```
 
 ## CC Switch note
 

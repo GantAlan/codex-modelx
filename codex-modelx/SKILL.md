@@ -127,20 +127,43 @@ codex exec -m mimo-v2.5 -c model_provider="custom" "??? OK"
 .\scripts\stop_proxy.ps1
 ```
 
+Safe default: `start_proxy.ps1` starts or checks the local proxy, but it does not modify `C:\Users\<you>\.codex\config.toml` unless you explicitly pass `-RepairCodexConfig`.
+
 Logs are written under `logs/`; runtime state is written under `state/`.
 
 ??? `logs/`?????? `state/`?
 
-If Desktop suddenly only shows GPT models again, repair the `custom` provider and restart the proxy:
+If Desktop suddenly only shows GPT models again, first check `http://127.0.0.1:17891/v1/models`. If the proxy lists third-party models but Desktop still hides them, repair the `custom` provider only when you intentionally want Codex to route through ModelX:
 
 ```powershell
 .\scripts\repair_custom_provider.ps1
-.\scripts\start_proxy.ps1
+.\scripts\start_proxy.ps1 -RepairCodexConfig
 ```
 
 Then fully restart Codex Desktop. This repair keeps `model_provider = "custom"` and only points `[model_providers.custom].base_url` back to `http://127.0.0.1:17891/v1`.
 
 CN: If Desktop only shows GPT models again, run the two commands above. The repair keeps provider `custom`; it does not switch the provider to `modelx`.
+
+## Model Picker Catalog / Advanced
+
+By default, Codex ModelX does not install `model_catalog_json` because an invalid catalog can make Codex Desktop reload with a broken model picker. Preview first:
+
+```powershell
+python .\scripts\generate_catalog.py --check-current
+python .\scripts\generate_catalog.py --include common
+```
+
+Only install after you have checked the preview and accept the risk:
+
+```powershell
+python .\scripts\generate_catalog.py --include common --install
+```
+
+To undo:
+
+```powershell
+python .\scripts\generate_catalog.py --uninstall
+```
 
 ## Testing / ??
 
@@ -169,6 +192,7 @@ Default tool strategy is `full_tools`. If full tool schemas fail upstream, the p
 ## Troubleshooting / ??
 
 - If Desktop only shows GPT models, confirm `[model_providers.custom].base_url` points to `http://127.0.0.1:17891/v1`, restart the proxy, then fully restart Codex Desktop.
+- Do not enable `model_catalog_json` unless you need a custom Desktop model picker catalog and have previewed it with `generate_catalog.py`.
 - If GPT requests show `converted_to_chat=True`, check whether the GPT model was explicitly configured with `allow_chat_completions_conversion`; normally it should be absent or false.
 - If MiMo is not listed, ensure `expose_upstream_models` is true and `models` contains `mimo-v2.5` in `modelx.config.json`.
 - If the proxy port is busy, edit `assets/config/modelx.config.json` and update `[model_providers.custom].base_url`.

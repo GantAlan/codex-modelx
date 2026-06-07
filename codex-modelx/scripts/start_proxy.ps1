@@ -1,3 +1,7 @@
+param(
+    [switch]$RepairCodexConfig
+)
+
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -12,6 +16,8 @@ $StatePath = Join-Path $StateDir "proxy-state.json"
 $ProxyLog = Join-Path $LogDir "proxy.log"
 $StdoutLog = Join-Path $LogDir "proxy.stdout.log"
 $StderrLog = Join-Path $LogDir "proxy.stderr.log"
+$CodexConfigPath = Join-Path $env:USERPROFILE ".codex\config.toml"
+$CodexBackupDir = Join-Path $env:USERPROFILE ".codex\backups"
 
 New-Item -ItemType Directory -Force -Path $LogDir, $StateDir | Out-Null
 
@@ -61,6 +67,88 @@ function Stop-ExistingModelXProxy {
     Start-Sleep -Milliseconds 500
 }
 
+
+function Set-OrAppendModelXLine {
+    param(
+        [string]$Section,
+        [string]$Key,
+        [string]$Line
+    )
+    $pattern = "(?m)^\s*" + [regex]::Escape($Key) + "\s*=.*$"
+    if ($Section -match $pattern) {
+        return [regex]::Replace($Section, $pattern, $Line, 1)
+    }
+    if (-not $Section.EndsWith("`n")) { $Section += "`n" }
+    return $Section + $Line + "`n"
+}
+
+function Ensure-CodexCustomProviderRoute {
+    param([string]$ExpectedBaseUrl)
+
+    if (-not (Test-Path -LiteralPath $CodexConfigPath)) { return }
+
+    $text = Get-Content -LiteralPath $CodexConfigPath -Raw
+    $originalText = $text
+    $sectionPattern = '(?ms)(\[model_providers\.custom\]\s*)(.*?)(?=\r?\n\[|\z)'
+    $match = [regex]::Match($text, $sectionPattern)
+
+    if ($match.Success) {
+        $header = $match.Groups[1].Value
+        $section = $match.Groups[2].Value
+        $section = Set-OrAppendModelXLine -Section $section -Key "name" -Line 'name = "custom"'
+        $section = Set-OrAppendModelXLine -Section $section -Key "base_url" -Line "base_url = `"$ExpectedBaseUrl`""
+        $section = Set-OrAppendModelXLine -Section $section -Key "wire_api" -Line 'wire_api = "responses"'
+        $section = Set-OrAppendModelXLine -Section $section -Key "requires_openai_auth" -Line 'requires_openai_auth = true'
+        $section = Set-OrAppendModelXLine -Section $section -Key "experimental_bearer_token" -Line 'experimental_bearer_token = "dummy-key"'
+        $text = $text.Substring(0, $match.Index) + $header + $section + $text.Substring($match.Index + $match.Length)
+    } else {
+        if (-not $text.EndsWith("`n")) { $text += "`n" }
+        $text += @"
+
+[model_providers.custom]
+name = "custom"
+base_url = "$ExpectedBaseUrl"
+wire_api = "responses"
+requires_openai_auth = true
+experimental_bearer_token = "dummy-key"
+"@
+    }
+
+    if ($text -ne $originalText) {
+        New-Item -ItemType Directory -Force -Path $CodexBackupDir | Out-Null
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        $backupPath = Join-Path $CodexBackupDir "config.toml.codex-modelx-start-repair-$timestamp.bak"
+        Copy-Item -LiteralPath $CodexConfigPath -Destination $backupPath -Force
+        [System.IO.File]::WriteAllText($CodexConfigPath, $text, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "Repaired Codex custom provider route to $ExpectedBaseUrl"
+        Write-Host "Backed up config.toml to: $backupPath"
+    }
+}
+
+function Test-CodexCustomProviderRoute {
+    param([string]$ExpectedBaseUrl)
+
+    if (-not (Test-Path -LiteralPath $CodexConfigPath)) {
+        Write-Warning "Codex config not found: $CodexConfigPath"
+        return
+    }
+
+    $text = Get-Content -LiteralPath $CodexConfigPath -Raw
+    $providerMatch = [regex]::Match($text, '(?m)^\s*model_provider\s*=\s*"([^"]*)"')
+    $provider = if ($providerMatch.Success) { $providerMatch.Groups[1].Value } else { "<not set>" }
+    $sectionMatch = [regex]::Match($text, '(?ms)(\[model_providers\.custom\]\s*)(.*?)(?=\r?\n\[|\z)')
+    $baseUrl = "<missing custom provider>"
+    if ($sectionMatch.Success) {
+        $baseMatch = [regex]::Match($sectionMatch.Groups[2].Value, '(?m)^\s*base_url\s*=\s*"([^"]*)"')
+        if ($baseMatch.Success) { $baseUrl = $baseMatch.Groups[1].Value }
+    }
+
+    if ($provider -ne "custom" -or $baseUrl -ne $ExpectedBaseUrl) {
+        Write-Warning "Codex config is not currently routed to Codex ModelX. model_provider=$provider custom.base_url=$baseUrl expected=$ExpectedBaseUrl"
+        Write-Warning "Not modifying config.toml. To repair intentionally, run: .\scripts\start_proxy.ps1 -RepairCodexConfig"
+    }
+}
+
 function Get-PythonCommand {
     $python = Get-Command python -ErrorAction SilentlyContinue
     if ($python) { return @{ File = $python.Source; Prefix = @("-u") } }
@@ -78,6 +166,12 @@ $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $hostName = if ($config.proxy.host) { [string]$config.proxy.host } else { "127.0.0.1" }
 $port = if ($config.proxy.port) { [int]$config.proxy.port } else { 17891 }
 $health = "http://${hostName}:$port/__health"
+$expectedBaseUrl = "http://${hostName}:$port/v1"
+if ($RepairCodexConfig) {
+    Ensure-CodexCustomProviderRoute -ExpectedBaseUrl $expectedBaseUrl
+} else {
+    Test-CodexCustomProviderRoute -ExpectedBaseUrl $expectedBaseUrl
+}
 
 if (Test-Path -LiteralPath $PidPath) {
     $pidText = (Get-Content -LiteralPath $PidPath -Raw).Trim()
